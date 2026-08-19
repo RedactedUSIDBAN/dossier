@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dossier</title>
+    <meta name="theme-color" content="#07090d" />
+    <meta name="description" content="Look up any Roblox player — outfits, presence, groups, RAP, banned accounts." />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,460;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@360;450;560;680&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/app.css?v=5" />
+    <link rel="icon" href="icon.svg" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="brand" href="./" id="brandLink">
+        <span class="brand-mark">D</span>
+        <span class="brand-type">
+          <strong>Dossier</strong>
+          <small>Roblox intelligence</small>
+        </span>
+      </a>
+      <form class="search" id="searchForm" autocomplete="off">
+        <label class="sr-only" for="searchInput">Search Roblox users</label>
+        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6" />
+          <path d="M16 16.5 20 21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+        <input
+          id="searchInput"
+          name="q"
+          type="search"
+          placeholder="Username, user ID, or banned account"
+          spellcheck="false"
+          maxlength="50"
+        />
+        <kbd>/</kbd>
+        <div class="suggest" id="suggest" hidden></div>
+      </form>
+    </header>
+
+    <main id="app">
+      <section class="landing" id="landing">
+        <p class="eyebrow">Public-signal lookup</p>
+        <h1>See the full public file<br />on any Roblox account.</h1>
+        <p class="lede">
+          Search any Roblox username. Outfits is the second tab.
+          Publish this folder on GitHub Pages for a free link that stays online.
+        </p>
+        <div class="landing-search">
+          <button type="button" class="ghost" id="focusSearch">Start a lookup</button>
+          <button type="button" class="ghost" id="bookmarkBtn">Bookmark this site</button>
+          <span>or press <kbd>Ctrl</kbd> + <kbd>D</kbd></span>
+        </div>
+        <div class="recents" id="recents" hidden>
+          <h2>Recent dossiers</h2>
+          <div class="recent-row" id="recentRow"></div>
+        </div>
+      </section>
+
+      <section class="workspace" id="workspace" hidden>
+        <div class="status-line" id="statusLine"></div>
+        <aside class="compare-dock" id="compareDock" hidden></aside>
+        <article class="dossier" id="dossier"></article>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" hidden></div>
+    <div class="modal" id="outfitModal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="outfitTitle">
+        <button class="icon-btn modal-close" id="closeOutfit" type="button">Close</button>
+        <div id="outfitBody"></div>
+      </div>
+    </div>
+    <script src="js/app.js?v=5" type="module"></script>
+  </body>
+</html>
