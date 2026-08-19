@@ -28,20 +28,53 @@ function cacheSet(key, value) {
   if (cache.size > 280) cache.delete(cache.keys().next().value);
 }
 
-async function rbx(url, options = {}, tries = 2) {
-  const timeout = options.timeout ?? 14000;
+function officialRobloxUrl(url) {
+  return String(url)
+    .replace(".roproxy.com", ".roblox.com")
+    .replace(".rotunnel.com", ".roblox.com");
+}
+
+function candidateUrls(url) {
+  const out = [];
+  const seen = new Set();
+  const add = (next) => {
+    if (next && !seen.has(next)) {
+      seen.add(next);
+      out.push(next);
+    }
+  };
+  add(url);
+  if (url.includes(".roproxy.com")) add(url.replaceAll(".roproxy.com", ".rotunnel.com"));
+  if (url.includes(".rotunnel.com")) add(url.replaceAll(".rotunnel.com", ".roproxy.com"));
+  const official = officialRobloxUrl(url);
+  if (official !== url) {
+    add(`https://corsproxy.io/?url=${encodeURIComponent(official)}`);
+    add(`https://corsproxy.io/?${encodeURIComponent(official)}`);
+  }
+  return out;
+}
+
+function looksLikeProxyReject(result) {
+  if (!result) return true;
+  if (result.status === 401 || result.status === 403 || result.status === 407) return true;
+  if (result.status === 429 || result.status >= 500) return true;
+  const err = result.data && result.data.error;
+  return typeof err === "string" && /api key|localhost|limited|forbidden/i.test(err);
+}
+
+async function fetchOnce(url, options, timeout) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeout);
   try {
-    const res = await fetch(url, {
-      method: options.method || "GET",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: ctrl.signal,
-    });
+    const method = options.method || "GET";
+    const headers = {};
+    let body;
+    if (options.body != null) {
+      body = typeof options.body === "string" ? options.body : JSON.stringify(options.body);
+      // text/plain keeps POST a "simple" request so the browser skips OPTIONS preflight
+      headers["Content-Type"] = "text/plain";
+    }
+    const res = await fetch(url, { method, headers, body, signal: ctrl.signal });
     const text = await res.text();
     let data = null;
     try {
@@ -49,20 +82,38 @@ async function rbx(url, options = {}, tries = 2) {
     } catch {
       data = null;
     }
-    if (!res.ok && tries > 1 && (res.status === 429 || res.status >= 500)) {
-      await new Promise((r) => setTimeout(r, 400));
-      return rbx(url, options, tries - 1);
-    }
     return { ok: res.ok, status: res.status, data };
-  } catch (err) {
-    if (tries > 1) {
-      await new Promise((r) => setTimeout(r, 400));
-      return rbx(url, options, tries - 1);
-    }
-    return { ok: false, status: 0, data: null, error: err.message };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function rbx(url, options = {}, tries = 2) {
+  const timeout = options.timeout ?? 12000;
+  const urls = candidateUrls(url);
+  let last = { ok: false, status: 0, data: null, error: "request failed" };
+
+  for (const candidate of urls) {
+    for (let attempt = 0; attempt < tries; attempt++) {
+      try {
+        const result = await fetchOnce(candidate, options, timeout);
+        if (result.ok && !looksLikeProxyReject(result)) return result;
+        last = result;
+        if (result.status && result.status < 500 && result.status !== 429 && !looksLikeProxyReject(result)) {
+          return result;
+        }
+        if (attempt + 1 < tries && (result.status === 429 || result.status >= 500)) {
+          await new Promise((r) => setTimeout(r, 280));
+          continue;
+        }
+        break;
+      } catch (err) {
+        last = { ok: false, status: 0, data: null, error: err.message };
+        if (attempt + 1 < tries) await new Promise((r) => setTimeout(r, 280));
+      }
+    }
+  }
+  return last;
 }
 
 function settled(value, fallback = null) {
@@ -179,6 +230,17 @@ async function resolveUser(query) {
     if (res.ok && res.data && res.data.id) return res.data;
   }
 
+  const search = await rbx(
+    `${HOST.users}/v1/users/search?keyword=${encodeURIComponent(trimmed)}&limit=10`
+  );
+  const hit = ((search.data && search.data.data) || []).find(
+    (u) => u.name && u.name.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (hit) {
+    const full = await rbx(`${HOST.users}/v1/users/${hit.id}`);
+    if (full.ok && full.data) return full.data;
+  }
+
   const exact = await rbx(`${HOST.users}/v1/usernames/users`, {
     method: "POST",
     body: { usernames: [trimmed], excludeBannedUsers: false },
@@ -196,17 +258,6 @@ async function resolveUser(query) {
       created: null,
       isBanned: Boolean(match.isBanned),
     };
-  }
-
-  const search = await rbx(
-    `${HOST.users}/v1/users/search?keyword=${encodeURIComponent(trimmed)}&limit=10`
-  );
-  const hit = ((search.data && search.data.data) || []).find(
-    (u) => u.name && u.name.toLowerCase() === trimmed.toLowerCase()
-  );
-  if (hit) {
-    const full = await rbx(`${HOST.users}/v1/users/${hit.id}`);
-    if (full.ok && full.data) return full.data;
   }
   return null;
 }
@@ -636,60 +687,54 @@ export async function searchUsers(q) {
   const cached = cacheGet(key);
   if (cached) return cached;
 
-  const [searchRes, exactRes] = await Promise.all([
-    rbx(`${HOST.users}/v1/users/search?keyword=${encodeURIComponent(q)}&limit=10`),
-    /^\d+$/.test(q)
-      ? rbx(`${HOST.users}/v1/users/${q}`)
-      : rbx(`${HOST.users}/v1/usernames/users`, {
-          method: "POST",
-          body: { usernames: [q], excludeBannedUsers: false },
-        }),
-  ]);
-
   const results = [];
   const seen = new Set();
-
-  if (/^\d+$/.test(q) && exactRes.ok && exactRes.data && exactRes.data.id) {
+  const pushUser = (u, extras = {}) => {
+    if (!u || !u.id || seen.has(u.id)) return;
+    seen.add(u.id);
     results.push({
-      id: exactRes.data.id,
-      name: exactRes.data.name,
-      displayName: exactRes.data.displayName,
-      hasVerifiedBadge: exactRes.data.hasVerifiedBadge,
-      isBanned: Boolean(exactRes.data.isBanned),
-      previousUsernames: [],
+      id: u.id,
+      name: u.name,
+      displayName: u.displayName || u.name,
+      hasVerifiedBadge: Boolean(u.hasVerifiedBadge),
+      isBanned: Boolean(u.isBanned),
+      previousUsernames: u.previousUsernames || [],
+      ...extras,
     });
-    seen.add(exactRes.data.id);
-  } else if (exactRes.data && Array.isArray(exactRes.data.data)) {
-    const extras = await Promise.all(
-      exactRes.data.data.map((u) => rbx(`${HOST.users}/v1/users/${u.id}`))
-    );
-    extras.forEach((full, i) => {
-      const u = exactRes.data.data[i];
-      if (!u || seen.has(u.id)) return;
+  };
+
+  if (/^\d+$/.test(q)) {
+    const byId = await rbx(`${HOST.users}/v1/users/${q}`, { timeout: 9000 });
+    if (byId.ok && byId.data && byId.data.id) pushUser(byId.data);
+  }
+
+  const searchRes = await rbx(
+    `${HOST.users}/v1/users/search?keyword=${encodeURIComponent(q)}&limit=10`,
+    { timeout: 9000 }
+  );
+  for (const u of (searchRes.data && searchRes.data.data) || []) {
+    pushUser(u, { isBanned: false, previousUsernames: u.previousUsernames || [] });
+  }
+
+  const alreadyExact = results.some((r) => r.name && r.name.toLowerCase() === q.toLowerCase());
+  if (!/^\d+$/.test(q) && !alreadyExact) {
+    const exactRes = await rbx(`${HOST.users}/v1/usernames/users`, {
+      method: "POST",
+      body: { usernames: [q], excludeBannedUsers: false },
+      timeout: 9000,
+    });
+    const extras = exactRes.data && Array.isArray(exactRes.data.data) ? exactRes.data.data : [];
+    for (const u of extras) {
+      const full = await rbx(`${HOST.users}/v1/users/${u.id}`, { timeout: 9000 });
       const info = settled(full, u) || u;
-      results.push({
-        id: u.id,
+      pushUser({
+        ...u,
         name: info.name || u.name,
         displayName: info.displayName || u.displayName,
         hasVerifiedBadge: Boolean(info.hasVerifiedBadge || u.hasVerifiedBadge),
         isBanned: Boolean(info.isBanned),
-        previousUsernames: [],
       });
-      seen.add(u.id);
-    });
-  }
-
-  for (const u of (searchRes.data && searchRes.data.data) || []) {
-    if (!u || seen.has(u.id)) continue;
-    results.push({
-      id: u.id,
-      name: u.name,
-      displayName: u.displayName,
-      hasVerifiedBadge: u.hasVerifiedBadge,
-      isBanned: false,
-      previousUsernames: u.previousUsernames || [],
-    });
-    seen.add(u.id);
+    }
   }
 
   const thumbs = await thumbnailMap(
