@@ -112,13 +112,20 @@ function imgTag(src, alt = "", cls = "") {
   return `<img class="${cls}" src="${src}" alt="${escapeHtml(alt)}" loading="lazy">`;
 }
 
+function pagePath() {
+  const raw = (location.pathname || "/").replace(/index\.html$/i, "");
+  if (!raw || raw === "/") return "/";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+}
+
 function currentUrl(u, vs, tab) {
   const params = new URLSearchParams();
   if (u) params.set("u", u);
   if (vs) params.set("vs", vs);
   if (tab && tab !== "overview") params.set("tab", tab);
   const q = params.toString();
-  return q ? `/?${q}` : "/";
+  const base = pagePath();
+  return q ? `${base}?${q}` : base;
 }
 
 function pushUrl() {

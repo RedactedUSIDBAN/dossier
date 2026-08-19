@@ -1,0 +1,31 @@
+Dossier — publish on GitHub Pages (not Render)
+
+1. Keep these files at the repository root (not inside public/ or another folder):
+
+   index.html
+   icon.svg
+   manifest.json
+   .nojekyll
+   HOW-TO-PUBLISH.txt
+   css/app.css
+   js/app.js
+   js/api.js
+
+2. GitHub → Settings → Pages
+   Source: Deploy from a branch
+   Branch: main
+   Folder: / (root)
+
+3. Site URL:
+   https://USERNAME.github.io/REPO/
+
+   This repo: https://redactedusidban.github.io/dossier/
+
+4. After a deploy, hard-refresh: Ctrl+Shift+R (Cmd+Shift+R on Mac)
+
+Notes
+- The browser talks to roproxy, then rotunnel, then corsproxy fallbacks.
+- GET-only search first. POST uses Content-Type: text/plain so CORS
+  preflight does not block username lookup.
+- Do not send Content-Type: application/json on GET.
+- Do not host the public site on Render (free tier sleeps).

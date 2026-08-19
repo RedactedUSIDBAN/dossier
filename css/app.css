@@ -1003,3 +1003,23 @@ select.filter {
     grid-template-columns: 1fr;
   }
 }
+
+.site-foot {
+  position: relative;
+  z-index: 1;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 1.4rem 2.4rem;
+  color: var(--faint);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.site-foot a {
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.site-foot p {
+  margin: 0 0 0.35rem;
+}

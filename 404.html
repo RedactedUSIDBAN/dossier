@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dossier</title>
+    <meta name="robots" content="noindex" />
+    <script>
+      const path = location.pathname.replace(/\/404\.html$/i, "/");
+      const base = path.endsWith("/") ? path : path + "/";
+      location.replace(base + location.search + location.hash);
+    </script>
+    <meta http-equiv="refresh" content="0;url=./" />
+  </head>
+  <body>
+    <p><a href="./">Back to Dossier</a></p>
+  </body>
+</html>
